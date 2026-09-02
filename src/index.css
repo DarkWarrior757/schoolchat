@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { font-family: 'DM Sans', system-ui, sans-serif; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::selection { background: #2e79c9; color: white; }
+.font-display { font-family: 'Space Grotesk', sans-serif; }
+.glass { backdrop-filter: blur(18px); }
+
+/* Dark mode (default) */
+.dark-mode { color-scheme: dark; }
+.dark-mode body, .dark-mode { background: #0b1220; color: #dbe5f3; }
+.dark-mode ::-webkit-scrollbar-thumb { background: #29374c; border-radius: 10px; }
+.dark-mode ::-webkit-scrollbar-thumb:hover { background: #40546f; }
+
+/* Light mode */
+.light-mode { color-scheme: light; }
+.light-mode body, .light-mode { background: #eef2f8; color: #1e2d43; }
+.light-mode ::-webkit-scrollbar-thumb { background: #c5d0de; border-radius: 10px; }
+.light-mode ::-webkit-scrollbar-thumb:hover { background: #a8b8cc; }
