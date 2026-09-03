@@ -47,11 +47,14 @@ export interface Category {
   position: number;
 }
 
+export type ClassRole = 'owner' | 'moderator' | 'member';
+
 export interface ClassMember {
   id: string;
   class_id: string;
   user_id: string;
   role: Role;
+  class_role: ClassRole;
   section_id: string | null;
   profiles?: Profile;
 }
@@ -102,6 +105,8 @@ export interface DirectMessage {
   conversation_id: string;
   sender_id: string;
   content: string;
+  message_type: string;
+  gif_url: string | null;
   is_edited: boolean;
   is_deleted: boolean;
   reply_to: string | null;
