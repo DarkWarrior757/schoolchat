@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, ArrowLeft, MessageCircle, Search, Image as ImageIcon, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { DMConversation, DirectMessage, Profile } from '@/types';
+import type { ClassMember, DMConversation, DirectMessage, Profile } from '@/types';
 
 const formatTime = (date: string) => new Intl.DateTimeFormat('en', { hour: 'numeric', minute: '2-digit' }).format(new Date(date));
 
 interface GifResult { id: string; url: string; preview: string; }
 
-export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { userId: string; friends: Profile[]; dmTargetId: string | null; onDmStarted: () => void }) {
+export function DirectMessages({ userId, friends, classMembers, dmTargetId, onDmStarted }: { userId: string; friends: Profile[]; classMembers: ClassMember[]; dmTargetId: string | null; onDmStarted: () => void }) {
   const [conversations, setConversations] = useState<DMConversation[]>([]);
   const [selected, setSelected] = useState<DMConversation | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -19,6 +19,7 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
   const [gifSearch, setGifSearch] = useState('');
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
+  const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { loadConversations(); }, [userId]);
@@ -51,6 +52,8 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
     const timer = setTimeout(() => searchGifs(gifSearch), 400);
     return () => clearTimeout(timer);
   }, [gifSearch]);
+
+  useEffect(() => { if (!error) return; const timer = window.setTimeout(() => setError(''), 3500); return () => window.clearTimeout(timer); }, [error]);
 
   const loadConversations = async () => {
     const { data: parts } = await supabase
@@ -100,7 +103,7 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
 
   const startConversationWithUser = async (targetUserId: string) => {
     const { data: convId, error } = await supabase.rpc('create_dm_with_member', { target_user_id: targetUserId });
-    if (error) { console.error('DM creation error:', error.message); return; }
+    if (error) { setError(error.message.includes('only message') ? 'You can only message friends or members of your classes.' : 'Unable to start conversation. Please try again.'); return; }
     if (!convId) return;
     const { data: parts } = await supabase
       .from('direct_message_participants')
@@ -124,7 +127,8 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
       .insert({ conversation_id: selected.id, sender_id: userId, content, message_type: 'text' })
       .select('*, profiles(*)')
       .maybeSingle();
-    if (!error && data) setMessages(prev => [...prev, data as DirectMessage]);
+    if (error) { setError('Failed to send message. Please try again.'); setComposer(content); }
+    else if (data) setMessages(prev => [...prev, data as DirectMessage]);
   };
 
   const sendGif = async (gif: GifResult) => {
@@ -135,7 +139,8 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
       .insert({ conversation_id: selected.id, sender_id: userId, content: gif.url, message_type: 'gif', gif_url: gif.url })
       .select('*, profiles(*)')
       .maybeSingle();
-    if (!error && data) setMessages(prev => [...prev, data as DirectMessage]);
+    if (error) setError('Failed to send GIF. Please try again.');
+    else if (data) setMessages(prev => [...prev, data as DirectMessage]);
   };
 
   const loadTrendingGifs = async () => {
@@ -159,7 +164,16 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
     setGifLoading(false);
   };
 
-  const filteredFriends = friends.filter(f =>
+  const allContacts = useMemo(() => {
+    const map = new Map<string, Profile>();
+    for (const f of friends) map.set(f.id, f);
+    for (const m of classMembers) {
+      if (m.profiles && m.user_id !== userId) map.set(m.user_id, m.profiles);
+    }
+    return [...map.values()];
+  }, [friends, classMembers, userId]);
+
+  const filteredContacts = allContacts.filter(f =>
     f.display_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     f.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -182,13 +196,13 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
                 <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search friends" className="w-full bg-transparent py-2 text-xs text-white outline-none" />
               </div>
               <div className="max-h-48 overflow-y-auto space-y-1">
-                {filteredFriends.map(f => (
+                {filteredContacts.map(f => (
                   <button key={f.id} onClick={() => startConversation(f)} className="w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-[#1d3852] transition">
                     <div className="h-7 w-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white" style={{ background: f.avatar_color }}>{f.display_name.slice(0, 2).toUpperCase()}</div>
                     <span className="text-xs text-[#c2d1df] truncate">{f.display_name}</span>
                   </button>
                 ))}
-                {!filteredFriends.length && <div className="text-xs text-[#7189a3] text-center py-3">No friends found</div>}
+                {!filteredContacts.length && <div className="text-xs text-[#7189a3] text-center py-3">No contacts found</div>}
               </div>
             </div>
           )}
@@ -278,6 +292,7 @@ export function DirectMessages({ userId, friends, dmTargetId, onDmStarted }: { u
           </div>
         )}
       </div>
+      {error && <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rounded-xl border border-[#7e3b4c] bg-[#3a1d2a] px-4 py-3 text-sm text-[#ffb8c6] shadow-2xl">{error}</div>}
     </div>
   );
 }
